@@ -1,0 +1,63 @@
+---
+title: "Practical machine learning project"
+output: html_document
+---
+
+##Summary
+
+The purpose of this project is to create a model, which will be able to predict in which way the barbell lifts were performed based on data gathered from accelerometers on the belt, forearm, arm and dumbell.
+
+##Getting and cleaning the data
+
+There are 2 datasets available, one with training and one with testing data on links:
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The datasets were read in and columns that are not needed for building the models were removed. These are colums which have "NA" values and the first 7 columns, which are not useful for prediction of the way the lifts were done. We need to make sure that the training and testing datasets will have the same variables so that we can do prediction on testing data based on model built from train data.
+
+```{r}
+pml<-read.csv("pml-training.csv",header=TRUE,na.strings  =c("NA", "", "#DIV/0!"))
+pmltest<-read.csv("pml-testing.csv",header=TRUE,stringsAsFactors=FALSE,na.strings  =c("NA", "", "#DIV/0!"))
+pml<-pml[,colSums(is.na(pml))==0]
+pmltest<-pmltest[,colSums(is.na(pmltest))==0]
+pml<-pml[,-c(1:7)]
+pmltest<-pmltest[,-c(1:7)]
+pml[,c(1:52)]<-as.numeric(as.character((unlist(pml[,c(1:52)]))))
+pmltest[,c(1:52)]<-as.numeric(as.character((unlist(pmltest[,c(1:52)]))))
+colnames(pmltest)<-colnames(pml)
+```
+
+##Training and validation sets
+
+As the test dataset does not contain the classe variable (the way how the lifts were done), the training dataset was split into training and validation set - 70% training and 30% validation, so that the model can be validated.
+
+```{r}
+set.seed(10)
+library(caret)
+intrain<-createDataPartition(y=pml$classe,p=0.7,list = FALSE)
+training<-pml[intrain,]
+validation<-pml[-intrain,]
+```
+
+
+##Model fit
+
+To choose a model, it was important to get high accuracy to be able to predict all the 20 test cases in the test dataset correctly. On the other hand it was important to get the model run in reasonable time. Random forest was chosen for its high accuracy with some tuning in train control having cross validation on 5 subsamples. This way we get high accuracy and the model was running for about 50 minutes. It was taken into account also preprocessing with PCA. This model ran quite fast, it took just about 15 minutes, however with 0.95 tresh, the final model accuracy was just 97%, which meant a high probability to get at least one test sample wrong (which was exactly the case when checking and comparing the prediction on test cases from this model with the prediction from the final model, there was one test case, which got wrong prediction from this model).
+
+So the final model was the random forest model.
+
+```{r}
+modelfit<-train(training$classe~.,method="rf",data=training,trControl= trainControl(method="cv",number=5))
+confusionMatrix(validation$classe,predict(modelfit,validation))
+```
+
+Looking at confusion matrix with prediction on the validation set from the model trained on training set, we can see that the accuracy of the model is 99.42% and from this the expected out of sample error is 0.58% (1-accuracy), so we can be confident enough to get all the 20 test cases correctly.
+
+Here below the prediction from this model on the 20 test cases.
+
+```{r}
+predict(modelfit,pmltest)
+```
+
